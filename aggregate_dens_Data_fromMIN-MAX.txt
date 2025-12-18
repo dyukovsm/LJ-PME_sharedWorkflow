@@ -1,0 +1,2 @@
+jobid                                      rcut     cuttype  replicas   temp. [K] 		 liq dens 		 gas dens
+
