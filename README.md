@@ -1,6 +1,8 @@
 HOW TO RUN:
 
+```bash
 git clone https://github.com/dyukovsm/LJ-PME_sharedWorkflow.git
+```
 
 ensure the packages listed in LJPMECUTenv.yml file are installed, preferably by creating a new environment from the yml.
 
