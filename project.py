@@ -34,15 +34,28 @@ PRINT_MY_NODE = 'echo -e "Hello World\nHello World upcomming hostname"; hostname
 WATER_STANDARD_RENAME = 'WAT'
 
 
-# for running
-MID_EQ_STEPS        = int(1000)     # int(2000000) 
-LONG_EQ_STEPS       = int(1000)     # int(20000000)
-SLOW_OUTPUT         = int(100)      # int(10000)     
-SLOW_CALC           = int(100)      # int(100)      
+# for testing
+#MID_EQ_STEPS        = int(1000)     # int(2000000) 
+#LONG_EQ_STEPS       = int(1000)     # int(20000000)
+#SLOW_OUTPUT         = int(100)      # int(10000)     
+#SLOW_CALC           = int(100)      # int(100)      
+#
+#PRO_STEPS           = int(1000)     # int(10000000) 
+#FAST_OUTPUT         = int(100)      # int(100)     
+#FAST_CALC           = int(100)      # int(100)     
 
-PRO_STEPS           = int(1000)     # int(10000000) 
-FAST_OUTPUT         = int(100)      # int(100)     
-FAST_CALC           = int(100)      # int(100)     
+# for running
+
+MID_EQ_STEPS        = int(2000000) 
+LONG_EQ_STEPS       = int(20000000)
+SLOW_OUTPUT         = int(10000)     
+SLOW_CALC           = int(100)      
+
+PRO_STEPS           = int(10000000) 
+FAST_OUTPUT         = int(100)     
+FAST_CALC           = int(100)     
+
+
 
 EQ_CHUNK_COUNT = names.NAME_EQ_CHUNK_COUNT #int(10)
 PRO_CHUNK_COUNT = names.NAME_PRO_CHUNK_COUNT
@@ -199,7 +212,7 @@ def BUILD_INPPUT(job):
 @FlowProject.pre(job_tester.mdps_written)
 @FlowProject.post(job_tester.inits_written)
 @FlowProject.post(job_tester.build_surfTen_nvt_done)
-@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": MAX_MEM, "walltime": SHORT_WAIT})
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 1, "memory": MAX_MEM, "walltime": SHORT_WAIT})
 def BUILD_INPUT_FROM_TEMPLATE(job):
     with(job):
 
@@ -401,7 +414,7 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
                 
         write_density.close()
         read_density = np.loadtxt(f'{names.DENS_LOCAL_DATA}.txt')
-        col2 = data[:, 1]
+        col2 = read_density[:, 1]
         
         gas_dens = col2.min()
         liq_dens = col2.max()
