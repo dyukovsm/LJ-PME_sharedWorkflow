@@ -45,7 +45,7 @@ tends to submit jobs when error claiming that "non-gpu nodes cannot submit gpu-b
 
 2 ) try running 1000 timesteps for both equilibrations and production, changing all saving to be every 100 steps
 
-3) some grid nodes like rom does not run gmx, exiting with error : 
+3 ) some grid nodes like rom does not run gmx, exiting with error : 
 	subprocess.CalledProcessError: Command '['gmx', 'trjconv', '-s', 'INPUT_TEMPLATE_SLAB.tpr', '-f', 'INPUT_TEMPLATE_SLAB.trr', '-o', 'ELONGATED_BOX_PLACEHOLDER.gro', '-dump', '45.0']' died with <Signals.SIGILL:$
 	
 	my solution is to ask for a different node: voh works : 
