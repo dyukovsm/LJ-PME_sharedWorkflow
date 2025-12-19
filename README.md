@@ -6,19 +6,26 @@ git clone https://github.com/dyukovsm/LJ-PME_sharedWorkflow.git
 
 ensure the packages listed in LJPMECUTenv.yml file are installed, preferably by creating a new environment from the yml.
 
+```bash
 gh release download v1.0.0-trajectories
-
+```
 downloads 5Gb of trajectory data that is used as a starting point. Concatinate parts of the downalod and extract the result:
 
+```bash
 cat trajectories_full.tar.xz.part* | tar -xJvf -
+```
 
 initialize worskpace for spce water by :
 
+```bash
 python init.py
+```
 
 and run by :
 
+```bash
 python project.py submit
+```
 
 cutoff jobs tend to be faster, so init.py can be run first without PME in the cutoff settings, 
 and when complete and analysis done, re-initialized with PME and run again : this works as long as new
@@ -30,8 +37,9 @@ by initialize.
 troubleshooting :
 
 1 ) a common error is that signac sometimes poorly interacts with node configuration: 
-
+```bash
 python project.py submit --force
+```
 
 tends to submit jobs when error claiming that "non-gpu nodes cannot submit gpu-based jobs" shows up.
 
