@@ -48,12 +48,12 @@ tends to submit jobs when error claiming that "non-gpu nodes cannot submit gpu-b
 3 ) some grid nodes like rom does not run gmx, exiting with error : 
 	subprocess.CalledProcessError: Command '['gmx', 'trjconv', '-s', 'INPUT_TEMPLATE_SLAB.tpr', '-f', 'INPUT_TEMPLATE_SLAB.trr', '-o', 'ELONGATED_BOX_PLACEHOLDER.gro', '-dump', '45.0']' died with <Signals.SIGILL:$
 	
-	my solution is to ask for a different node: voh works : 
+my solution is to ask for a different node: voh works : 
 
-	srun -q gpu --gres=gpu:1 --constraint=avx512 -N 1 -n 4 --mem 8G -t 11:00:00 --pty bash
+srun -q gpu --gres=gpu:1 --constraint=avx512 -N 1 -n 4 --mem 8G -t 11:00:00 --pty bash
 
-	then try running project.py manually :
+then try running project.py manually :
 		
-	python project.py run -o <job-that-breaks>
+python project.py run -o <job-that-breaks>
 		
-	doing conda pre-compiled gromacs also works but I was not gettign a better performance than 1 ns/day for LJ-PME.
+doing conda pre-compiled gromacs also works but I was not gettign a better performance than 1 ns/day for LJ-PME.
