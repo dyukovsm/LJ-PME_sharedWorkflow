@@ -20,7 +20,9 @@ import re
 import subprocess
 import io
 
-PROJECT_FILES_DIR = os.path.abspath('files')
+PROJECT_FILES_DIR = os.path.abspath('../../../files')
+#/wsu/home/go/go07/go0719/GROMACS/2025/fall/methane_VLE/paper_template/files
+#/wsu/home/go/go07/go0719/GROMACS/2025/fall/methane_VLE/paper_template/LJ-PME_sharedWorkflow/flows_of_work/water/
 PROJECT_DIR = os.path.abspath('.')
 MDP_DIR = 'mdp'; XYZ_DIR = 'coordinates'; XML_DIR = 'xml/water'
 
