@@ -1,0 +1,4 @@
+# Ignore all Signac workspaces wherever they appear
+**/workspace/
+**/.signac/
+**/signac_project_document.json
