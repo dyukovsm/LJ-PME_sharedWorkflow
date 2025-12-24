@@ -20,7 +20,7 @@ import re
 import subprocess
 import io
 
-PROJECT_FILES_DIR = os.path.abspath('../../../files')
+PROJECT_FILES_DIR = os.path.abspath('files')
 #/wsu/home/go/go07/go0719/GROMACS/2025/fall/methane_VLE/paper_template/files
 #/wsu/home/go/go07/go0719/GROMACS/2025/fall/methane_VLE/paper_template/LJ-PME_sharedWorkflow/flows_of_work/water/
 PROJECT_DIR = os.path.abspath('.')
@@ -37,25 +37,25 @@ WATER_STANDARD_RENAME = 'WAT'
 
 
 # for testing
-#MID_EQ_STEPS        = int(1000)     # int(2000000) 
-#LONG_EQ_STEPS       = int(1000)     # int(20000000)
-#SLOW_OUTPUT         = int(100)      # int(10000)     
-#SLOW_CALC           = int(100)      # int(100)      
-#
-#PRO_STEPS           = int(1000)     # int(10000000) 
-#FAST_OUTPUT         = int(100)      # int(100)     
-#FAST_CALC           = int(100)      # int(100)     
+MID_EQ_STEPS        = int(1000)     # int(2000000) 
+LONG_EQ_STEPS       = int(1000)     # int(20000000)
+SLOW_OUTPUT         = int(100)      # int(10000)     
+SLOW_CALC           = int(100)      # int(100)      
+
+PRO_STEPS           = int(1000)     # int(10000000) 
+FAST_OUTPUT         = int(100)      # int(100)     
+FAST_CALC           = int(100)      # int(100)     
 
 # for running
 
-MID_EQ_STEPS        = int(2000000) 
-LONG_EQ_STEPS       = int(20000000)
-SLOW_OUTPUT         = int(10000)     
-SLOW_CALC           = int(100)      
-
-PRO_STEPS           = int(10000000) 
-FAST_OUTPUT         = int(100)     
-FAST_CALC           = int(100)     
+#MID_EQ_STEPS        = int(2000000) 
+#LONG_EQ_STEPS       = int(20000000)
+#SLOW_OUTPUT         = int(10000)     
+#SLOW_CALC           = int(100)      
+#
+#PRO_STEPS           = int(10000000) 
+#FAST_OUTPUT         = int(100)     
+#FAST_CALC           = int(100)     
 
 
 
