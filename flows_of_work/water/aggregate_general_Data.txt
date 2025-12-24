@@ -1,0 +1,2 @@
+jobid                                      rcut     cuttype  replicas   temp. [K] Potential                                   LJ (SR)                                     Coulomb (SR)                                Coul. recip.                                Total Energy                                Vir-ZZ                                      Pres-ZZ                                     #Surf*SurfTen                              
+
