@@ -168,7 +168,7 @@ def build_input(job):
 @FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": MED_WAIT},with_job=True,cmd=True)
 def EQ_NVT(job):
     
-    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_NVT}.mdp -c ' + f'init.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_NVT}.tpr -maxwarn -1')
+    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_NVT}.mdp -c ' + f'init.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_NVT}.tpr -maxwarn 100')
     run_mdp = str(GMX_PREFIX + f' mdrun -nt ' + f'{MAX_CORES}' + ' -deffnm' + f' {names.NAME_EQ_NVT}')
     run_command = str(PRINT_MY_NODE + '; ' + 'sleep 6' + '; ' + build_mdp + '; ' + 'sleep 16' + '; ' + run_mdp)
     
@@ -219,8 +219,8 @@ def ELONGATE_FOR_SURFTEN(job):
 @FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": TWO_WEEKS},with_job=True,cmd=True)
 def EQ_SURFTEN(job):
     
-    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'{names.NAME_ELONGATED}.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_SURFTEN}.tpr -maxwarn -1')    
-    # build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'{names.NAME_ELONGATED}.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_SURFTEN}.tpr -maxwarn -1')
+    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'{names.NAME_ELONGATED}.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_SURFTEN}.tpr -maxwarn 100')    
+    # build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'{names.NAME_ELONGATED}.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_SURFTEN}.tpr -maxwarn 100')
     run_mdp = str(GMX_PREFIX + f' mdrun -nt ' + f'{MAX_CORES}' + ' -deffnm' + f' {names.NAME_EQ_SURFTEN}')
     run_command = str(PRINT_MY_NODE + '; ' + 'sleep 6' + '; ' + build_mdp + '; ' + 'sleep 16' + '; ' + run_mdp)
     
@@ -239,7 +239,7 @@ def EQ_SURFTEN(job):
 @FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": ONE_WORKWEEK},with_job=True,cmd=True)
 def PRO_SURFTEN(job):
     
-    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_PRO_SURFTEN}.mdp -c ' + f'{names.NAME_EQ_SURFTEN}.gro -p ' + 'init.top -o ' + f'{names.NAME_PRO_SURFTEN}.tpr -maxwarn -1')
+    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_PRO_SURFTEN}.mdp -c ' + f'{names.NAME_EQ_SURFTEN}.gro -p ' + 'init.top -o ' + f'{names.NAME_PRO_SURFTEN}.tpr -maxwarn 100')
     run_mdp = str(GMX_PREFIX + f' mdrun -nt ' + f'{MAX_CORES}' + ' -deffnm' + f' {names.NAME_PRO_SURFTEN}')
     run_command = str(PRINT_MY_NODE + '; ' + 'sleep 6' + '; ' + build_mdp + '; ' + 'sleep 16' + '; ' + run_mdp)
     

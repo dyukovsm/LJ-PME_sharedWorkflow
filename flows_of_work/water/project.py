@@ -53,7 +53,7 @@ FAST_CALC           = int(100)      # int(100)
 #SLOW_CALC           = int(100)      
 #
 #PRO_STEPS           = int(10000000) 
-#FAST_OUTPUT         = int(100)     
+#FAST_OUTPUT         = int(5000)     
 #FAST_CALC           = int(100)     
 
 

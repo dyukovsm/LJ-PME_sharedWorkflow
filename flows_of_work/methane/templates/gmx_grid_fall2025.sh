@@ -9,6 +9,8 @@
 #SBATCH -q gpu
 #SBATCH -N 1
 #SBATCH --gres=gpu:1 --oversubscribe
+#SBATCH --exclude=rom1
+
 #######SBATCH --exclude=sha1 
 {% set cores_per_socket = 2 %}   
 {% set sockets = ((cpus / cores_per_socket) | round(0, 'ceil')) | int %}
