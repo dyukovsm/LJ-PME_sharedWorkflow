@@ -5,7 +5,7 @@
 ```bash
 git clone https://github.com/dyukovsm/LJ-PME_sharedWorkflow.git
 cd LJ-PME_sharedWorkflow
-git checkout wat_met_noTess
+git checkout main
 ```
 
 ensure compatible mamba environments, preferably by installing fresh from LJPMECUTenv.yml
