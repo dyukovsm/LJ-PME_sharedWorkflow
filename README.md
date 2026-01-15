@@ -14,6 +14,7 @@ ensure compatible mamba environments, preferably by installing fresh from LJPMEC
 mamba env create -f LJPMECUTenv.yml
 mamba activate LJPMECUTenv
 ```
+If using conda change mamba to conda in the templates/gmx_grid_fall2025.sh file.
 
 ## Running the Workflow
 
