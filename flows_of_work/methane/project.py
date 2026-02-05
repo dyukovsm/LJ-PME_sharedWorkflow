@@ -19,13 +19,14 @@ import pandas as pd
 import re
 import subprocess
 import io
+import freud
 
 PROJECT_FILES_DIR = os.path.abspath('files')
 PROJECT_DIR = os.path.abspath('.')
 MDP_DIR = 'mdp'; XYZ_DIR = 'coordinates'; XML_DIR = 'xml/trappe'
 
-MIN_CORES = 1; BUILD_CORES = 2; MAX_CORES = 4; SIMULATION_GPU = 1
-TINNY_MEM = 0.512; LOW_MEM = 1.024; HIGH_MEM = 2.048; FOUR_GIGS = 4.096; SIXTEEN_GIGS = 16.384
+MIN_CORES = 1; BUILD_CORES = 2; MAX_CORES = 4; SIMULATION_GPU = 1; PADDING_CORES_4_CLASSIFYING_PHASES = 16
+TINNY_MEM = 0.512; LOW_MEM = 1.024; HIGH_MEM = 2.048; FOUR_GIGS = 4.096; SIXTEEN_GIGS = 16.384; VORONOI_MEMORY = 16.0
 SHORT_WAIT = 2.0; HALF_DAY = 8.0; DAY_WAIT = 24.0; MED_WAIT = 96.0; ONE_WORKWEEK = 111.0; TWO_WEEKS = 222.0
 
 PRINT_MY_NODE = 'echo -e "Hello World\nHello World upcomming hostname"; hostname'
@@ -253,13 +254,12 @@ def PRO_SURFTEN(job):
 @FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": SIMULATION_GPU, "memory": LOW_MEM, "walltime": SHORT_WAIT})
 def GRAPH_AND_COLLECT_PROPERTIES(job):
     with(job):
-        last_completed_chunk = names.NAME_PRO_SURFTEN
-
-        output_file = f'{names.NAME_PRO_SURFTEN}'
+        
+        output_file = names.NAME_PRO_SURFTEN
+        #output_file = f'{names.NAME_TEMP_RAMP_STOP}' # names.PRO_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk+1]
 
         # try to match both this and the strings below with gromacs promp
         properties_of_interest = ["Potential", "LJ-(SR)", "Coulomb-(SR)", "Coul.-recip.", "Total-Energy", "Vir-ZZ", "Pres-ZZ", "#Surf*SurfTen"]
-
         
         # properties_of_interest_to_search_string_dict[properties_of_interest] has the exact strings to search for
         properties_of_interest_to_search_string_dict = {
@@ -321,38 +321,12 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
         
         newline_string = "\n".join(str(results[prop]) for prop in properties_of_interest if prop in results)
         
-        initialBox =  mb.load(f'{output_file}.gro')
-        boxLength = initialBox.box.lengths
-        number_density_profile_bins = int(boxLength[2]*2.0)
-        
-        p = subprocess.Popen([f'{names.GMX_PREFIX}', 'density', '-f', f'{output_file}.trr', '-s', f'{output_file}.tpr', '-o', 'dens_profile.xvg','-sl',f'{number_density_profile_bins}'], stdin=subprocess.PIPE,stdout=subprocess.PIPE)
+        # run gmx density just for lolz
+        p = subprocess.Popen([f'{names.GMX_PREFIX}', 'density', '-f', f'{output_file}.trr', '-s', f'{output_file}.tpr', '-o', 'dens_profile.xvg','-sl','88'], stdin=subprocess.PIPE,stdout=subprocess.PIPE)
         out,err = p.communicate(f'0\n0\n'.encode('utf-8'))#(b'13\n14\n15\n16\n17\n18\n19\n20\n0\n')
         capture = out.decode()
-        
-        read_density = open(f'dens_profile.xvg','r')
-        write_density = open(f'{names.DENS_LOCAL_DATA}.txt','w')
-        read_density_lines = read_density.readlines(); read_density.close()
-        for line in read_density_lines:
-            if line.startswith('@') or line.startswith('#'):
-                pass
-            else:
-                write_density.write(line)
-                
-        write_density.close()
-        read_density = np.loadtxt(f'{names.DENS_LOCAL_DATA}.txt')
-        col2 = read_density[:, 1]
-        
-        gas_dens = col2.min()
-        liq_dens = col2.max()
-        
-        aggregate_densFile = open(f"../../{names.DENS_GLOBAL_DATA}.txt",'a')
-        aggregate_densFile.write(f"{job.id:<42} {job.sp.r_cut:<8} {job.sp.cut_type:<8} {job.sp.replicas:<8} TEMP{job.sp.temperature:<8}"
-                                    f" \t\t {liq_dens:<9}"
-                                    f" \t\t {gas_dens:<9}"
-                                   "\n")
-        
 
-        ###### --------- Ensure the indeces correspond to properteis we need  --------- ######
+        ###### --------- Ensure the indexes correspond to properteis we need  --------- ######
         
         p = subprocess.Popen([f'{names.GMX_PREFIX}', '-quiet', 'energy', '-f', f'{output_file}.edr', '-o', f'{names.GENERAL_LOCAL_DATA}_{output_file}.xvg'], stdin=subprocess.PIPE,stdout=subprocess.PIPE)
         out,err = p.communicate(f'{newline_string}'.encode('utf-8'))#(b'13\n14\n15\n16\n17\n18\n19\n20\n0\n')
@@ -472,7 +446,7 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
                 if col_name in value_list[0]:
                     key_to_mean_data = key
             if key_to_mean_data != '':
-                axes[i].set_title(f'{col_name}; mean {properties_of_interest_storage_dict[key_to_mean_data]}') 
+                axes[i].set_title(f'{col_name}; mean {properties_of_interest_storage_dict[key_to_mean_data]}') # <- hooman edited.
 
         axes[-1].set_xlabel(xaxis_label) # Set x-label only on the last subplot
 
@@ -481,6 +455,228 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
         plt.close()
 
 
+###################################################################################################
+###################################################################################################
+#### DENSITY PROFILE ALIGNMENT AND PHASE CLASSIFICATION
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.pro_nvt_surften_done)
+@FlowProject.post(job_tester.slab_aligned)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": HIGH_MEM, "walltime": SHORT_WAIT})
+def ALIGN_SLAB(job):
+    """
+    Align liquid slab to box center.
+
+    This operation:
+    1. Computes density profile and finds liquid-gas interfaces
+    2. Shifts slab so liquid phase is centered at Z_LEN/2 (handles PBC wrapping)
+    3. Generates aligned trajectory files for phase classification and Voronoi analysis
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Input files
+        tpr_file = f'{output_file}.tpr'
+        trr_file = f'{output_file}.trr'
+        gro_file = f'{output_file}.gro'
+
+        # Output files (aligned)
+        output_trr = names.NAME_ALIGNED_TRR
+        output_gro = names.NAME_ALIGNED_GRO
+
+        # Run alignment
+        alignment_data = job_templates.align_slab_to_center(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_trr=output_trr,
+            output_gro=output_gro,
+            bin_size=names.BIN_SIZE
+        )
+
+        print(f"Slab alignment complete. Aligned files created:")
+        print(f"  {output_trr}")
+        print(f"  {output_gro}")
+        print(f"  {names.NAME_SHIFT_COMPARISON_PNG}")
+
+
+@FlowProject.pre(job_tester.slab_aligned)
+@FlowProject.post(job_tester.phases_classified)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": HIGH_MEM, "walltime": SHORT_WAIT})
+def CLASSIFY_PHASES(job):
+    """
+    Robustly classify liquid, gas, and transition phases from aligned slab.
+
+    This operation:
+    1. Computes density profile from aligned trajectory
+    2. Fits tanh function to extract interface parameters
+    3. Uses derivative-based noise analysis to robustly classify phases
+    4. Saves comprehensive phase data with liquid/gas/transition densities
+    5. Saves z-coordinates for each phase (for Voronoi filtering)
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Input files (aligned)
+        tpr_file = f'{output_file}.tpr'
+        aligned_trr = names.NAME_ALIGNED_TRR
+        aligned_gro = names.NAME_ALIGNED_GRO
+
+        # Run phase classification
+        phase_data = job_templates.classify_phases_from_aligned_slab(
+            job,
+            tpr_file=tpr_file,
+            aligned_trr=aligned_trr,
+            aligned_gro=aligned_gro,
+            bin_size=names.BIN_SIZE,
+            d_multiplier=names.D_TANH_THICKNESS_MULTIPLIER,
+            noise_multiplier=names.DERIVATIVE_NOISE_THRESHOLD_MULTIPLIER
+        )
+
+        file1 = names.NAME_PHASE_DATA
+        file2 = names.NAME_PHASE_Z_COORDS
+        file3 = names.NAME_PHASE_CLASSIFICATION_PNG
+
+        if job.isfile(file1) and job.isfile(file2) and job.isfile(file3):
+            print(f"Phase classification complete. Output files created:")
+            print(f"  {file1}")
+            print(f"  {file2}")
+            print(f"  {file3}")
+        else :
+            for i in range(6):
+                print(f'totally not there -->>{file1} {file2} {file3}')
+
+
+###################################################################################################
+###################################################################################################
+#### MDANALYSIS VORONOI WORKFLOW
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.phases_classified)
+@FlowProject.post(job_tester.mda_voronoi_tessellated)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": SIMULATION_GPU, "memory": VORONOI_MEMORY, "walltime": ONE_WORKWEEK})
+def TESSELLATE_VORONOI(job):
+    """
+    Compute Voronoi tessellation on the FULL system (all residues).
+
+    CRITICAL: Voronoi must be computed on ALL residues to get correct volumes.
+    Phase classification happens in a separate operation.
+    """
+    with(job):
+        # Use aligned files from ALIGN_SLAB operation
+        gro_file = names.NAME_ALIGNED_GRO
+        trr_file = names.NAME_ALIGNED_TRR
+
+        # Compute Voronoi on full system only
+        job_templates.compute_voronoi_volumes_with_mda(
+            job,
+            gro_file=gro_file,
+            trr_file=trr_file,
+            output_npz=names.NAME_RESIDUE_DATA_ALL,
+            max_frames=names.MAX_FRAMES_TO_READ
+        )
+
+        print(f"Voronoi tessellation complete: {names.NAME_RESIDUE_DATA_ALL}")
+
+
+# this is not optimized (eats 16Gb RAM),  and not needed for tanh.
+@FlowProject.pre(job_tester.phases_classified)
+@FlowProject.pre(job_tester.mda_voronoi_tessellated)
+@FlowProject.post(job_tester.mda_voronoi_classified)
+@FlowProject.operation(directives={ "np": PADDING_CORES_4_CLASSIFYING_PHASES,  "ngpu": 0, "memory": VORONOI_MEMORY, "walltime": SHORT_WAIT})
+def CLASSIFY_VORONOI_BY_PHASE(job):
+    """
+    Classify pre-computed Voronoi volumes into liquid, gas, and transition phases.
+
+    Uses z-coordinate binning to assign each residue's volume to the appropriate phase
+    based on the phase classification from the density profile analysis.
+    """
+    with(job):
+        # Classify volumes by phase using z-binning
+        job_templates.classify_voronoi_by_phase(
+            job,
+            input_npz_all=names.NAME_RESIDUE_DATA_ALL,
+            output_npz_liq=names.NAME_RESIDUE_DATA_LIQ,
+            output_npz_gas=names.NAME_RESIDUE_DATA_GAS,
+            output_npz_tra=names.NAME_RESIDUE_DATA_TRA,
+            output_z_hist_png=names.NAME_Z_POSITION_HISTOGRAM
+        )
+
+        print(f"Volume classification complete:")
+        print(f"  LIQ: {names.NAME_RESIDUE_DATA_LIQ}")
+        print(f"  GAS: {names.NAME_RESIDUE_DATA_GAS}")
+        print(f"  TRA: {names.NAME_RESIDUE_DATA_TRA}")
+        print(f"  Z-histogram: {names.NAME_Z_POSITION_HISTOGRAM}")
+
+# this is not needed for tanh.
+@FlowProject.pre(job_tester.phases_classified)
+@FlowProject.pre(job_tester.mda_voronoi_classified)
+@FlowProject.post(job_tester.mda_individual_histograms_complete)
+@FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": 0, "memory": VORONOI_MEMORY, "walltime": SHORT_WAIT})
+def GENERATE_PHASE_HISTOGRAMS(job):
+    """
+    Generate individual phase histograms from NPZ files.
+    """
+    with(job):
+        gro_file = names.NAME_ALIGNED_GRO
+
+        job_templates.generate_phase_histograms_individual(
+            job,
+            gro_file=gro_file,
+            npz_liq=names.NAME_RESIDUE_DATA_LIQ,
+            npz_gas=names.NAME_RESIDUE_DATA_GAS,
+            npz_tra=names.NAME_RESIDUE_DATA_TRA,
+            output_png=names.NAME_PHASE_HISTOGRAM_INDIVIDUAL,
+            molar_mass=names.CURRENT_MOLAR_MASS
+        )
+
+
+###################################################################################################
+###################################################################################################
+#### MULTI-METHOD DENSITY RESULTS AGGREGATION
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.mda_individual_histograms_complete)
+@FlowProject.post(job_tester.density_results_exported)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def EXPORT_DENSITY_RESULTS(job):
+    """
+    Export density results from multiple methods to a single aggregation file.
+
+    Extracts data from slab_phase_classification_data.txt and writes to density_results.txt
+    in the project directory with job info and all density values.
+    """
+    with(job):
+        # Define files to read and lookup strings
+        files_to_read = [names.NAME_PHASE_DATA]
+
+        # Lookup strings for extracting values from slab_phase_classification_data.txt
+        # Order matches the header in density_results.txt
+        lookup_strings = [
+            "minDens_raw (kg/m³):",       # minDens_raw (for minMaxDensGas)
+            "maxDens_raw (kg/m³):",       # maxDens_raw (for minMaxDensLiq)
+            "rho_gas_fit (kg/m³):",       # tanhGas
+            "rho_liq_fit (kg/m³):",       # tanhLiq
+            "d_fit (nm):",                # tanhd_fit
+            "Gas density (robust mean):", # dens_stableDeriv_Tess_Gas
+            "Transition density (robust mean):",  # dens_stableDeriv_Tess_Tra
+            "Liquid density (robust mean):"      # dens_stableDeriv_Tess_Liq
+        ]
+
+        # Destination file in project directory
+        destination_file = os.path.join(PROJECT_DIR, names.MANY_METHODS_JOBS_DATA)
+
+        # Extract and write results
+        job_templates.many_method_extractor(
+            job,
+            list_of_files2read=files_to_read,
+            look_up_strs=lookup_strings,
+            destination_file=destination_file
+        )
 
 
 if __name__ == '__main__':
