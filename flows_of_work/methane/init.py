@@ -5,9 +5,9 @@ current_directory = os.getcwd()
 current_directory_name = os.path.basename(current_directory)
 project = signac.init_project() #current_directory)
 
-r_cut = [6.0, 4.0, 3.0, 1.4] # [6.0, 4.0, 3.0, 2.0, 1.4, 1.0] 
-cut_type = ['Cut-off','PME'] #, 138.1, 72.53] # 343, 310.3, 241.7, 138.1 and 72.53
-temperature = [135.0, 140.0, 145.0, 165.0]
+r_cut = [1.4] # [6.0, 4.0, 3.0, 2.0, 1.4, 1.0] 
+cut_type = ['PME'] #, 138.1, 72.53] # 343, 310.3, 241.7, 138.1 and 72.53
+temperature = [140.0]
 replicas = [0]
 
 # filter the list of dictionaries

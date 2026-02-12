@@ -1,0 +1,3 @@
+job 	 sp 
+3f63de746794b1805deb631a3b3d9935 		 {'r_cut': 1.4, 'cut_type': 'Cut-off', 'replicas': 0, 'temperature': 300}
+b64ffbcbd7235c7b2427d48fe8754273 		 {'r_cut': 1.4, 'cut_type': 'PME', 'replicas': 0, 'temperature': 300}

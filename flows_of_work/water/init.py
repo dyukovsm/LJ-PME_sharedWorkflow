@@ -5,9 +5,9 @@ current_directory = os.getcwd()
 current_directory_name = os.path.basename(current_directory)
 project = signac.init_project() #current_directory)
 
-r_cut = [0.8, 1.4, 2.0]#, 0.8, 0.6] # [2.0, 1.4, 1.0]
-cut_type = ['Cut-off','PME'] 
-temperature = [550] #[400, 450, 500, 550, 575, 600]
+r_cut = [1.4]#, 0.8, 0.6] # [2.0, 1.4, 1.0]
+cut_type = ['Cut-off', 'PME'] 
+temperature = [300] #[400, 450, 500, 550, 575, 600]
 
 replicas = [0] 
 

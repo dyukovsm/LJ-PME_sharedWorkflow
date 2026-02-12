@@ -183,5 +183,34 @@ def data_collected(job):
                 
     return test_passed
 
-##################################################################################
+@FlowProject.label
+def slab_aligned(job):
+    """Check if slab alignment is complete."""
+    with(job):
+        return os.path.isfile(names.NAME_ALIGNED_GRO) and os.path.isfile(names.NAME_ALIGNED_TRR) and os.path.isfile(names.NAME_SHIFT_COMPARISON_PNG) and os.path.isfile(names.NAME_COM_DRIFT_PNG) and os.path.isfile(names.NAME_PROFILE_DRIFT_PNG)
+
+@FlowProject.label
+def slab_drift_calculated(job):
+    """Check if slab alignment is complete."""
+    test_passed = False
+    local_name_of_file = f'../../{names.NAME_ALIGNMENT_ANALYSIS}.txt'
+    if os.path.exists(local_name_of_file):
+        with open(local_name_of_file, "r") as f:
+            contents = f.read()
+            if job.id in contents:
+                test_passed = True
+
+    return test_passed
+
+@FlowProject.label
+def dual_tanh_fit_done(job):
+    """Check if dual-tanh fit results have been written to project file."""
+    test_passed = False
+    local_name_of_file = f'{names.DUAL_TANH_RESULTS_TXT}'
+    if os.path.exists(local_name_of_file):
+        with open(local_name_of_file, "r") as f:
+            contents = f.read()
+            if job.id in contents:
+                test_passed = True
+    return test_passed
 

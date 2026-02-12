@@ -24,7 +24,7 @@ PROJECT_FILES_DIR = os.path.abspath('files')
 PROJECT_DIR = os.path.abspath('.')
 MDP_DIR = 'mdp'; XYZ_DIR = 'coordinates'; XML_DIR = 'xml/trappe'
 
-MIN_CORES = 1; BUILD_CORES = 2; MAX_CORES = 4; SIMULATION_GPU = 1
+MIN_CORES = 1; BUILD_CORES = 2; MAX_CORES = 8; SIMULATION_GPU = 1
 TINNY_MEM = 0.512; LOW_MEM = 1.024; HIGH_MEM = 2.048; FOUR_GIGS = 4.096; SIXTEEN_GIGS = 16.384
 SHORT_WAIT = 2.0; HALF_DAY = 8.0; DAY_WAIT = 24.0; MED_WAIT = 96.0; ONE_WORKWEEK = 111.0; TWO_WEEKS = 222.0
 
@@ -42,12 +42,12 @@ PRINT_MY_NODE = 'echo -e "Hello World\nHello World upcomming hostname"; hostname
 
 # for running
 MID_EQ_STEPS        = int(2000000) 
-LONG_EQ_STEPS       = int(50000000)
+LONG_EQ_STEPS       = int(55000000)
 SLOW_OUTPUT         = int(100000)
 SLOW_CALC           = int(100)   
 
-PRO_STEPS           = int(10000000) 
-FAST_OUTPUT         = int(5000)     
+PRO_STEPS           = int(12000000) 
+FAST_OUTPUT         = int(4000)     
 FAST_CALC           = int(100)      
 
 PLANNED_Z_ELONGATION = 74.2444
@@ -56,9 +56,9 @@ INIT_CUBELENGTH = 14.2
 
 GMX_PREFIX = names.GMX_PREFIX
 
-PLANNED_Z_ELONGATION_PME = 14.2
-N_MOLECULES_PME = int(3346)
-INIT_CUBELENGTH_PME = 6.2 
+PLANNED_Z_ELONGATION_PME = 44.0 # 14.2
+N_MOLECULES_PME = int(10000) # int(3346)
+INIT_CUBELENGTH_PME = 8.93 # 6.2 
 
 current_directory = os.getcwd()
 current_directory_name = os.path.basename(current_directory)
@@ -66,8 +66,9 @@ project = signac.get_project()
 
 class Custom_environment(DefaultSlurmEnvironment):  
 
-    hostname_pattern = r".*\.grid\.wayne\.edu"
-    template = "gmx_grid_fall2025.sh"
+    #hostname_pattern = r".*\.grid\.wayne\.edu"
+    #template = "gmx_grid_fall2025.sh"
+    template = "v3overSub_2025_gpu_potoff.sh"
 
     
 ###################################################################################################
@@ -480,6 +481,98 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
         plt.savefig(f'{names.GENERAL_LOCAL_DATA}_{output_file}.png')
         plt.close()
 
+
+###################################################################################################
+
+@FlowProject.pre(job_tester.pro_nvt_surften_done)
+@FlowProject.post(job_tester.slab_aligned)
+@FlowProject.post(job_tester.slab_drift_calculated)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def ALIGN_SLAB(job):
+    """
+    Align liquid slab to box center before fitting.
+
+    Uses derivative of density profile to find interfaces,
+    then shifts slab so liquid phase is centered at Z_LEN/2.
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Input files
+        tpr_file = f'{output_file}.tpr'
+        trr_file = f'{output_file}.trr'
+        gro_file = f'{output_file}.gro'
+
+        # Output aligned files
+        output_trr = names.NAME_ALIGNED_TRR
+        output_gro = names.NAME_ALIGNED_GRO
+
+        # Run alignment
+        alignment_data = job_templates.align_slab_to_center(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_trr=output_trr,
+            output_gro=output_gro
+        )
+
+        print(f"Slab alignment complete:")
+        print(f'------------------------------')
+        for i_dummy in alignment_data:
+            print(f' ------ {alignment_data[i_dummy]} ------')
+        print(f'------------------------------')
+
+
+###################################################################################################
+###################################################################################################
+#### DUAL-TANH DENSITY PROFILE FIT
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.slab_aligned)
+@FlowProject.post(job_tester.dual_tanh_fit_done)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def DUAL_TANH_FIT(job):
+    """
+    Fit dual-tanh to ALIGNED density profile and extract phase densities.
+
+    Extracts:
+    - rho_G: gas density (kg/m³)
+    - rho_L: liquid density (kg/m³)
+    - w: slab width (nm)
+    - dL: left interface thickness (nm)
+    - dR: right interface thickness (nm)
+
+    Writes results to project-level txt file.
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Use ALIGNED files from ALIGN_SLAB operation
+        tpr_file = f'{output_file}.tpr'
+        trr_file = names.NAME_ALIGNED_TRR  # aligned!
+        gro_file = names.NAME_ALIGNED_GRO  # aligned!
+
+        # Output files
+        output_png = names.DUAL_TANH_FIT_PNG
+        output_txt = os.path.join(PROJECT_DIR, names.DUAL_TANH_RESULTS_TXT)
+
+        # Run dual-tanh fit on aligned data
+        results = job_templates.dual_tanh_fit(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_png=output_png,
+            output_txt_project_dir=output_txt
+        )
+
+        print(f"Dual-tanh fit complete:")
+        print(f"  ρ_G = {results['rho_G']:.2f} kg/m³")
+        print(f"  ρ_L = {results['rho_L']:.2f} kg/m³")
+        print(f"  w = {results['w']:.3f} nm")
+        print(f"  δ_L = {results['dL']:.3f} nm, δ_R = {results['dR']:.3f} nm")
 
 
 

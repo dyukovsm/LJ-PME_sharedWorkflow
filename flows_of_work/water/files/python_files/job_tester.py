@@ -131,8 +131,7 @@ def inits_written(job):
 @FlowProject.label
 def mdps_written(job):
     with(job):
-        check_these_files = return_file_with_extensions(file_names=[names.NAME_TEMP_RAMP_START, names.NAME_TEMP_RAMP_STOP,
-                                                                    names.NAME_EQ_SURFTEN,
+        check_these_files = return_file_with_extensions(file_names=[names.NAME_EQ_SURFTEN,
                                                                     names.NAME_PRO_SURFTEN],extension_list = ['.mdp'])
         return test_existence_simple(job,check_these_files)
     
@@ -149,10 +148,17 @@ def build_input_starter(job):
 
 ##################################################################################
 
-# TEMP_RAMP_START -> TEMP_RAMP_STOP -> EQ_SURFTEN -> PRO_SURFTEN
-    
+# EQ_NVT -> ELONGATE -> EQ_SURFTEN -> PRO_SURFTEN
+        
 ##################################################################################
 
+@FlowProject.label
+def eq_nvt_done(job):
+    with(job):
+        
+        bool_job = look_in_file(job,[f"{names.NAME_EQ_NVT}.log"],"Finished",check_for_not=True,check_for_not_str=['Received the TERM', 'Received the INT'])
+        return bool_job
+    
 @FlowProject.label
 def build_surfTen_nvt_done(job):
     with(job):
@@ -163,51 +169,6 @@ def build_surfTen_nvt_done(job):
         )
         bool_job = test_existence_simple(job,files_to_check)
         return bool_job
-    
-##################################################################################
-
-@FlowProject.label
-def eq_nvt_post_em_files_present(job):
-    with(job):
-        bool_job = False
-        files_to_check = return_file_with_extensions(
-            file_names=[f'{names.NAME_TEMP_RAMP_START}'],
-            extension_list=extension_list_of_common_files
-        )
-        bool_job = test_existence_simple(job,files_to_check)
-        return bool_job
-    
-    
-@FlowProject.label
-def temp_ramp_start_done(job):
-    with(job):
-        bool_job = look_in_file(job,[f"{names.NAME_TEMP_RAMP_START}.log"],"Finished",check_for_not=True,check_for_not_str=['Received the TERM', 'Received the INT'])
-        return bool_job
-    
-    
-##################################################################################
-
-@FlowProject.label
-def temp_ramp_stop_done(job):
-    with(job):
-        bool_job = look_in_file(job,[f"{names.NAME_TEMP_RAMP_STOP}.log"],"Finished",check_for_not=True,check_for_not_str=['Received the TERM', 'Received the INT'])
-        return bool_job
-    
-##################################################################################
-
-@FlowProject.label
-def build_surfTen_nvt_done(job):
-    with(job):
-        bool_job = False
-        files_to_check = return_file_with_extensions(
-            file_names=[f'{names.NAME_ELONGATED}'],
-            extension_list=['.gro']
-        )
-        bool_job = test_existence_simple(job,files_to_check)
-        return bool_job
-    
-##################################################################################
-
 
 @FlowProject.label
 def eq_nvt_surften_done(job):
@@ -245,4 +206,36 @@ def data_collected(job):
                 
     return test_passed
 
+
+
+@FlowProject.label
+def slab_aligned(job):
+    """Check if slab alignment is complete."""
+    with(job):
+        return os.path.isfile(names.NAME_ALIGNED_GRO) and os.path.isfile(names.NAME_ALIGNED_TRR) and os.path.isfile(names.NAME_SHIFT_COMPARISON_PNG) and os.path.isfile(names.NAME_COM_DRIFT_PNG) and os.path.isfile(names.NAME_PROFILE_DRIFT_PNG)
+
+@FlowProject.label
+def slab_drift_calculated(job):
+    """Check if slab alignment is complete."""
+    test_passed = False
+    local_name_of_file = f'../../{names.NAME_ALIGNMENT_ANALYSIS}.txt'
+    if os.path.exists(local_name_of_file):
+        with open(local_name_of_file, "r") as f:
+            contents = f.read()
+            if job.id in contents:
+                test_passed = True
+
+    return test_passed
+
+@FlowProject.label
+def dual_tanh_fit_done(job):
+    """Check if dual-tanh fit results have been written to project file."""
+    test_passed = False
+    local_name_of_file = f'{names.DUAL_TANH_RESULTS_TXT}'
+    if os.path.exists(local_name_of_file):
+        with open(local_name_of_file, "r") as f:
+            contents = f.read()
+            if job.id in contents:
+                test_passed = True
+    return test_passed
 

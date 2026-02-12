@@ -1,0 +1,2 @@
+job 	 sp 
+58805206999dcd8452c7f5fafc156359 		 {'r_cut': 1.4, 'cut_type': 'PME', 'replicas': 0, 'temperature': 140.0}

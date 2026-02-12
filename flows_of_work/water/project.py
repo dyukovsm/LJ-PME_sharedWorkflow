@@ -26,7 +26,7 @@ PROJECT_FILES_DIR = os.path.abspath('files')
 PROJECT_DIR = os.path.abspath('.')
 MDP_DIR = 'mdp'; XYZ_DIR = 'coordinates'; XML_DIR = 'xml/water'
 
-MIN_CORES = 1; BUILD_CORES = 2; MAX_CORES = 4
+MIN_CORES = 1; BUILD_CORES = 2; MAX_CORES = 8
 TINNY_MEM = 0.512; LOW_MEM = 1.024; HIGH_MEM = 2.048; MAX_MEM = 4.096
 SHORT_WAIT = 2.0; HALF_DAY = 8.0; DAY_WAIT = 24.0; MED_WAIT = 96.0; ONE_WORKWEEK = 111.0; TWO_WEEKS = 123.0
 
@@ -37,24 +37,24 @@ WATER_STANDARD_RENAME = 'WAT'
 
 
 # for testing
-MID_EQ_STEPS        = int(1000)     # int(2000000) 
-LONG_EQ_STEPS       = int(1000)     # int(20000000)
-SLOW_OUTPUT         = int(100)      # int(10000)     
-SLOW_CALC           = int(100)      # int(100)      
-
-PRO_STEPS           = int(1000)     # int(10000000) 
-FAST_OUTPUT         = int(100)      # int(100)     
-FAST_CALC           = int(100)      # int(100)     
+#MID_EQ_STEPS        = int(1000)     # int(2000000) 
+#LONG_EQ_STEPS       = int(1000)     # int(20000000)
+#SLOW_OUTPUT         = int(100)      # int(10000)     
+#SLOW_CALC           = int(100)      # int(100)      
+#
+#PRO_STEPS           = int(1000)     # int(10000000) 
+#FAST_OUTPUT         = int(100)      # int(100)     
+#FAST_CALC           = int(100)      # int(100)     
 
 # for running
-#MID_EQ_STEPS        = int(2000000) 
-#LONG_EQ_STEPS       = int(20000000)
-#SLOW_OUTPUT         = int(10000)     
-#SLOW_CALC           = int(100)      
-#
-#PRO_STEPS           = int(10000000) 
-#FAST_OUTPUT         = int(5000)     
-#FAST_CALC           = int(100)     
+MID_EQ_STEPS        = int(2000000) 
+LONG_EQ_STEPS       = int(50000000)
+SLOW_OUTPUT         = int(50000)     
+SLOW_CALC           = int(100)      
+
+PRO_STEPS           = int(12000000) 
+FAST_OUTPUT         = int(4000)     
+FAST_CALC           = int(100)  
 
 
 
@@ -62,16 +62,16 @@ EQ_CHUNK_COUNT = names.NAME_EQ_CHUNK_COUNT #int(10)
 PRO_CHUNK_COUNT = names.NAME_PRO_CHUNK_COUNT
 
 PME_CUBELENGTH_Z = 12.0
-PME_CUBELENGTH_XY = 5.75
-PME_CUBELENGTH_Z_FINAL = 24.0
+PME_CUBELENGTH_XY = 6.5 # 5.75
+PME_CUBELENGTH_Z_FINAL = 32.0
 
-CUT_CUBELENGTH_Z = 14.0
-CUT_CUBELENGTH_XY = 8.1
-CUT_CUBELENGTH_Z_FINAL = 50.0
+CUT_CUBELENGTH_Z = 19.0
+CUT_CUBELENGTH_XY = 8.6
+CUT_CUBELENGTH_Z_FINAL = 67.0
 
-N_MOLECULES_CUT = int(27500) 
+N_MOLECULES_CUT = int(42000) 
 #N_MOLECULES_PME = int(10750) 
-N_MOLECULES_PME = int(11750) 
+N_MOLECULES_PME = int(20000)# int(11750) 
 GMX_PREFIX = names.GMX_PREFIX
 
 current_directory = os.getcwd()
@@ -80,14 +80,17 @@ project = signac.get_project()
 
 class Custom_environment(DefaultSlurmEnvironment):  
 
-    hostname_pattern = r".*\.grid\.wayne\.edu"
-    template = "gmx_grid_fall2025.sh"
+    #hostname_pattern = r".*\.grid\.wayne\.edu"
+    #template = "gmx_grid_fall2025.sh"
+    template = "v3overSub_2025_gpu_potoff.sh"
     
 ###################################################################################################
 
 # use to use this but now is vestigial 
 cut_T_to_zInit__zFinal = {
-    450 : [21.63, 55.00 ], #450 : [14.00, 55.00],
+    300 : [21.63, 55.00],
+    400 : [21.63, 55.00],
+    450 : [21.63, 55.00], #450 : [14.00, 55.00],
     500 : [15.06, 55.53],
     550 : [17.07, 56.54],
     575 : [18.75, 57.38],
@@ -95,6 +98,8 @@ cut_T_to_zInit__zFinal = {
       }
 
 pme_T_to_zInit__zFinal = {
+    300 : [18.34, 31.50],
+    400 : [18.34, 31.50],
     450 : [18.34, 31.50], #450 : [12.00, 31.50],
     500 : [12.77, 31.89],
     550 : [14.48, 32.74],
@@ -102,12 +107,12 @@ pme_T_to_zInit__zFinal = {
     600 : [18.34, 34.67 ]
  }
 
-#@FlowProject.pre(job_tester.important_jobs)
+##@FlowProject.pre(job_tester.important_jobs)
 #@FlowProject.pre(job_tester.build_input_starter)
 #@FlowProject.post(job_tester.inits_written)
 @FlowProject.post(job_tester.mdps_written)
 @FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": MAX_MEM, "walltime": SHORT_WAIT})
-def BUILD_INPPUT(job):
+def BUILD_INPUT(job):
 
     long_range_option = job.sp.cut_type
 
@@ -158,7 +163,7 @@ def BUILD_INPPUT(job):
     chunked_eq = int(LONG_EQ_STEPS/EQ_CHUNK_COUNT)
     chunked_pro = int(PRO_STEPS/PRO_CHUNK_COUNT)
     
-    # TEMP_RAMP_START
+    # EQ_NVT
     parameters = {
         'integrator' : 'md',
         'nsteps' : MID_EQ_STEPS,
@@ -175,22 +180,11 @@ def BUILD_INPPUT(job):
         'rvdw_switch' : 0.0,
         'DispCorr' : 'No',
         'tcouple' : 'nose-hoover',
-        'ref_t' : 450 + 1/3*(job.sp.temperature - 450)
+        'ref_t' : job.sp.temperature 
         }
     
-    job_templates.simple_mdp_writer(job,mdp_name=f'{names.NAME_TEMP_RAMP_START}.mdp',parameters=parameters,constraints=None,templates_dir=f'{PROJECT_FILES_DIR}/mdp/',template_name='NVT_template_generic.mdp')
-
-
-    # TEMP_RAMP_START
-    parameters.update({
-        'nsteps' : MID_EQ_STEPS,
-        'output_control' : SLOW_OUTPUT,
-        'nstcalcenergy' : FAST_CALC,
-        'ref_t' : 450 + 2/3*(job.sp.temperature - 450)
-        })
+    job_templates.simple_mdp_writer(job,mdp_name=f'{names.NAME_EQ_NVT}.mdp',parameters=parameters,constraints=None,templates_dir=f'{PROJECT_FILES_DIR}/mdp/',template_name='NVT_template_generic.mdp')
     
-    job_templates.simple_mdp_writer(job,mdp_name=f'{names.NAME_TEMP_RAMP_STOP}.mdp',parameters=parameters,constraints=None,templates_dir=f'{PROJECT_FILES_DIR}/mdp/',template_name='NVT_template_generic.mdp')
-
     #eqSURFTEN
     parameters.update({
         'nsteps' : LONG_EQ_STEPS,
@@ -202,7 +196,7 @@ def BUILD_INPPUT(job):
     job_templates.simple_mdp_writer(job,mdp_name=f'{names.NAME_EQ_SURFTEN}.mdp',parameters=parameters,constraints=None,templates_dir=f'{PROJECT_FILES_DIR}/mdp/',template_name='NVT_template_generic.mdp')
 
     parameters.update({
-        'nsteps' : chunked_pro,
+        'nsteps' : PRO_STEPS,
         'output_control' : FAST_OUTPUT,
         'nstcalcenergy' : FAST_CALC,
         'ref_t' : job.sp.temperature 
@@ -210,82 +204,60 @@ def BUILD_INPPUT(job):
     
     job_templates.simple_mdp_writer(job,mdp_name=f'{names.NAME_PRO_SURFTEN}.mdp',parameters=parameters,constraints=None,templates_dir=f'{PROJECT_FILES_DIR}/mdp/',template_name='NVT_template_generic.mdp')
 
-@FlowProject.pre(job_tester.mdps_written)
-@FlowProject.post(job_tester.inits_written)
-@FlowProject.post(job_tester.build_surfTen_nvt_done)
-@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 1, "memory": MAX_MEM, "walltime": SHORT_WAIT})
-def BUILD_INPUT_FROM_TEMPLATE(job):
-    with(job):
-
-        if 'Cut-off' in job.sp.cut_type:
-            template_dir = f'{PROJECT_FILES_DIR}/{XYZ_DIR}/slab_template/CUT'
-
-        elif 'PME' in job.sp.cut_type:
-            template_dir = f'{PROJECT_FILES_DIR}/{XYZ_DIR}/slab_template/PME'
-
-        shutil.copy(f'{template_dir}/{names.NAME_INPUT_TEMPLATE_SLAB}.trr', '.')
-        shutil.copy(f'{template_dir}/{names.NAME_INPUT_TEMPLATE_SLAB}.tpr', '.')
-        shutil.copy(f'{template_dir}/{names.NAME_INPUT_TEMPLATE_SLAB}.mdp', '.')
-        shutil.copy(f'{template_dir}/init.top', '.')
-
-        job_templates.build_slab_from_template(job, template_file_trr=f'{names.NAME_INPUT_TEMPLATE_SLAB}.trr', template_file_tpr=f'{names.NAME_INPUT_TEMPLATE_SLAB}.tpr',
-                                               template_file_mdp=f'{names.NAME_INPUT_TEMPLATE_SLAB}.mdp', output_name=f'{names.NAME_ELONGATED}.gro',pick_randomTrue_pick_allFalse=True)
-        
-
-###################################################################################################
-###################################################################################################
-#### need to load the template gro surften file (different files for pme vs cut) save as init.gro
-###################################################################################################
-###################################################################################################
-
-
 @FlowProject.pre(job_tester.inits_written)
-@FlowProject.pre(job_tester.important_jobs)
+#@FlowProject.pre(job_tester.important_jobs)
+#@FlowProject.pre(job_tester.build_surfTen_nvt_done)
+@FlowProject.post(job_tester.eq_nvt_done)
+@FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": TWO_WEEKS},with_job=True,cmd=True)
+def EQ_NVT(job):
+    
+    #last_completed_chunk = job_templates.give_name_return_whichChunk(job,names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE)
+    input_file = 'init' #names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk]
+    output_file = names.NAME_EQ_NVT #names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk+1]
+    
+    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{output_file}.mdp -c ' + f'{input_file}.gro -p ' + 'init.top -o ' + f'{output_file}.tpr -maxwarn 999')
+    #build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'last_frame.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_SURFTEN}.tpr -maxwarn 999999')
+    run_mdp = str(GMX_PREFIX + f' mdrun -nt ' + f'{MAX_CORES}' + ' -deffnm' + f' {output_file}')    # + ' -nb cpu')# + ' -pin on')
+    run_command = str(PRINT_MY_NODE + '; ' + 'sleep 2' + '; ' + build_mdp + '; ' + 'sleep 2' + '; ' + run_mdp)
+    
+    return run_command        
+
+@FlowProject.pre(job_tester.eq_nvt_done) 
+@FlowProject.post(job_tester.build_surfTen_nvt_done) 
+@FlowProject.operation(directives={ "np": MIN_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def ELONGATE_FOR_SURFTEN(job):
+    with(job):   
+        initialBox =  mb.load(f'{names.NAME_EQ_NVT}.gro')
+        boxLength = initialBox.box.lengths
+        
+        outputFile = open(f'{names.NAME_ELONGATED}.gro','w')
+        
+        dummyFile = open(f'{names.NAME_EQ_NVT}.gro','r')
+        lines = dummyFile.readlines(); dummyFile.close()
+        
+        if 'Cut-off' in job.sp.cut_type:
+            zLength = CUT_CUBELENGTH_Z_FINAL # cut_T_to_zInit__zFinal[job.sp.temperature] 
+        elif 'PME' in job.sp.cut_type:
+            zLength = PME_CUBELENGTH_Z_FINAL # pme_T_to_zInit__zFinal[job.sp.temperature]
+        
+        for i in range(len(lines)):
+            if i == len(lines)-1:
+                #zLength=PLANNED_Z_ELONGATION #boxLength[2]*3 # otherwise get a tuple can't be changed error
+                outputFile.write(f'   {boxLength[0]}   {boxLength[1]}   {zLength}\n')
+            else:
+                outputFile.write(f'{lines[i]}')
+                
+        outputFile.close()
+
+#@FlowProject.pre(job_tester.important_jobs)
 @FlowProject.pre(job_tester.build_surfTen_nvt_done)
-@FlowProject.post(job_tester.temp_ramp_start_done)
-@FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": TWO_WEEKS},with_job=True,cmd=True)
-def TEMP_RAMP_START(job):
-    
-    #last_completed_chunk = job_templates.give_name_return_whichChunk(job,names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE)
-    input_file = names.NAME_ELONGATED #names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk]
-    output_file = names.NAME_TEMP_RAMP_START #names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk+1]
-    
-    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{output_file}.mdp -c ' + f'{input_file}.gro -p ' + 'init.top -o ' + f'{output_file}.tpr -maxwarn 999')
-    #build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'last_frame.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_SURFTEN}.tpr -maxwarn 999999')
-    run_mdp = str(GMX_PREFIX + f' mdrun -nt ' + f'{MAX_CORES}' + ' -deffnm' + f' {output_file}')    # + ' -nb cpu')# + ' -pin on')
-    run_command = str(PRINT_MY_NODE + '; ' + 'sleep 2' + '; ' + build_mdp + '; ' + 'sleep 2' + '; ' + run_mdp)
-    
-    return run_command
-
-###################################################################################################
-
-@FlowProject.pre(job_tester.important_jobs)
-@FlowProject.pre(job_tester.temp_ramp_start_done)
-@FlowProject.post(job_tester.temp_ramp_stop_done)
-@FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": TWO_WEEKS},with_job=True,cmd=True)
-def TEMP_RAMP_STOP(job):
-    
-    #last_completed_chunk = job_templates.give_name_return_whichChunk(job,names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE)
-    input_file = names.NAME_TEMP_RAMP_START #names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk]
-    output_file = names.NAME_TEMP_RAMP_STOP #names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk+1]
-    
-    build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{output_file}.mdp -c ' + f'{input_file}.gro -p ' + 'init.top -o ' + f'{output_file}.tpr -maxwarn 999')
-    #build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'last_frame.gro -p ' + 'init.top -o ' + f'{names.NAME_EQ_SURFTEN}.tpr -maxwarn 999999')
-    run_mdp = str(GMX_PREFIX + f' mdrun -nt ' + f'{MAX_CORES}' + ' -deffnm' + f' {output_file}')    # + ' -nb cpu')# + ' -pin on')
-    run_command = str(PRINT_MY_NODE + '; ' + 'sleep 2' + '; ' + build_mdp + '; ' + 'sleep 2' + '; ' + run_mdp)
-    
-    return run_command
-
-###################################################################################################
-
-@FlowProject.pre(job_tester.important_jobs)
-@FlowProject.pre(job_tester.temp_ramp_stop_done)
 @FlowProject.post(job_tester.eq_nvt_surften_done)
 @FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": TWO_WEEKS},with_job=True,cmd=True)
 def EQ_SURFTEN(job):
     
     last_completed_chunk = job_templates.give_name_return_whichChunk(job,names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE)
-    input_file = names.NAME_TEMP_RAMP_STOP #names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk]
+
+    input_file = names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk]
     output_file = names.EQ_SURFTEN_CHUNK_TO_STARTING_GRO_FILE[last_completed_chunk+1]
     
     build_mdp = str(GMX_PREFIX + ' grompp -f ' + f'{names.NAME_EQ_SURFTEN}.mdp -c ' + f'{input_file}.gro -p ' + 'init.top -o ' + f'{output_file}.tpr -maxwarn 999')
@@ -297,7 +269,7 @@ def EQ_SURFTEN(job):
 
 ###################################################################################################
 
-@FlowProject.pre(job_tester.important_jobs)
+#@FlowProject.pre(job_tester.important_jobs)
 @FlowProject.pre(job_tester.eq_nvt_surften_done)
 @FlowProject.post(job_tester.pro_nvt_surften_done)
 @FlowProject.operation(directives={ "np": MAX_CORES,  "ngpu": SIMULATION_GPU, "memory": HIGH_MEM, "walltime": TWO_WEEKS},with_job=True,cmd=True)
@@ -555,7 +527,99 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
         plt.savefig(f'{names.GENERAL_LOCAL_DATA}_{output_file}.png')
         plt.close()
 
+        #check for profile drift
+
 ###################################################################################################
+
+@FlowProject.pre(job_tester.pro_nvt_surften_done)
+@FlowProject.post(job_tester.slab_aligned)
+@FlowProject.post(job_tester.slab_drift_calculated)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def ALIGN_SLAB(job):
+    """
+    Align liquid slab to box center before fitting.
+
+    Uses derivative of density profile to find interfaces,
+    then shifts slab so liquid phase is centered at Z_LEN/2.
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Input files
+        tpr_file = f'{output_file}.tpr'
+        trr_file = f'{output_file}.trr'
+        gro_file = f'{output_file}.gro'
+
+        # Output aligned files
+        output_trr = names.NAME_ALIGNED_TRR
+        output_gro = names.NAME_ALIGNED_GRO
+
+        # Run alignment
+        alignment_data = job_templates.align_slab_to_center(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_trr=output_trr,
+            output_gro=output_gro
+        )
+
+        print(f"Slab alignment complete:")
+        print(f'------------------------------')
+        for i_dummy in alignment_data:
+            print(f' ------ {alignment_data[i_dummy]} ------')
+        print(f'------------------------------')
+
+
+###################################################################################################
+###################################################################################################
+#### DUAL-TANH DENSITY PROFILE FIT
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.slab_aligned)
+@FlowProject.post(job_tester.dual_tanh_fit_done)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def DUAL_TANH_FIT(job):
+    """
+    Fit dual-tanh to ALIGNED density profile and extract phase densities.
+
+    Extracts:
+    - rho_G: gas density (kg/m³)
+    - rho_L: liquid density (kg/m³)
+    - w: slab width (nm)
+    - dL: left interface thickness (nm)
+    - dR: right interface thickness (nm)
+
+    Writes results to project-level txt file.
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Use ALIGNED files from ALIGN_SLAB operation
+        tpr_file = f'{output_file}.tpr'
+        trr_file = names.NAME_ALIGNED_TRR  # aligned!
+        gro_file = names.NAME_ALIGNED_GRO  # aligned!
+
+        # Output files
+        output_png = names.DUAL_TANH_FIT_PNG
+        output_txt = os.path.join(PROJECT_DIR, names.DUAL_TANH_RESULTS_TXT)
+
+        # Run dual-tanh fit on aligned data
+        results = job_templates.dual_tanh_fit(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_png=output_png,
+            output_txt_project_dir=output_txt
+        )
+
+        print(f"Dual-tanh fit complete:")
+        print(f"  ρ_G = {results['rho_G']:.2f} kg/m³")
+        print(f"  ρ_L = {results['rho_L']:.2f} kg/m³")
+        print(f"  w = {results['w']:.3f} nm")
+        print(f"  δ_L = {results['dL']:.3f} nm, δ_R = {results['dR']:.3f} nm")
 
 
 if __name__ == '__main__':
