@@ -326,7 +326,7 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
         number_density_profile_bins = int(boxLength[2]*2.0)
         
         p = subprocess.Popen([f'{names.GMX_PREFIX}', 'density', '-f', f'{output_file}.trr', '-s', f'{output_file}.tpr', '-o', 'dens_profile.xvg','-sl',f'{number_density_profile_bins}'], stdin=subprocess.PIPE,stdout=subprocess.PIPE)
-        out,err = p.communicate(f'0\n0\n'.encode('utf-8'))#(b'13\n14\n15\n16\n17\n18\n19\n20\n0\n')
+        out,err = p.communicate(f'0\n0\n'.encode('utf-8'))
         capture = out.decode()
         
         read_density = open(f'dens_profile.xvg','r')
@@ -479,6 +479,181 @@ def GRAPH_AND_COLLECT_PROPERTIES(job):
         plt.tight_layout()
         plt.savefig(f'{names.GENERAL_LOCAL_DATA}_{output_file}.png')
         plt.close()
+
+
+###################################################################################################
+###################################################################################################
+#### SLAB ALIGNMENT
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.pro_nvt_surften_done)
+@FlowProject.post(job_tester.slab_aligned)
+@FlowProject.post(job_tester.slab_drift_calculated)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def ALIGN_SLAB(job):
+    """
+    Align liquid slab to box center before fitting.
+
+    Uses derivative of density profile to find interfaces,
+    then shifts slab so liquid phase is centered at Z_LEN/2.
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Input files
+        tpr_file = f'{output_file}.tpr'
+        trr_file = f'{output_file}.trr'
+        gro_file = f'{output_file}.gro'
+
+        # Output aligned files
+        output_trr = names.NAME_ALIGNED_TRR
+        output_gro = names.NAME_ALIGNED_GRO
+
+        # Run alignment
+        alignment_data = job_templates.align_slab_to_center(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_trr=output_trr,
+            output_gro=output_gro
+        )
+
+        print(f"Slab alignment complete:")
+        print(f'------------------------------')
+        for i_dummy in alignment_data:
+            print(f' ------ {alignment_data[i_dummy]} ------')
+        print(f'------------------------------')
+
+
+###################################################################################################
+###################################################################################################
+#### DUAL-TANH DENSITY PROFILE FIT
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.slab_aligned)
+@FlowProject.post(job_tester.dual_tanh_fit_done)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def DUAL_TANH_FIT(job):
+    """
+    Fit dual-tanh to ALIGNED density profile and extract phase densities.
+
+    Extracts:
+    - rho_G: gas density (kg/m³)
+    - rho_L: liquid density (kg/m³)
+    - w: slab width (nm)
+    - dL: left interface thickness (nm)
+    - dR: right interface thickness (nm)
+
+    Writes results to project-level txt file.
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Use ALIGNED files from ALIGN_SLAB operation
+        tpr_file = f'{output_file}.tpr'
+        trr_file = names.NAME_ALIGNED_TRR  # aligned!
+        gro_file = names.NAME_ALIGNED_GRO  # aligned!
+
+        # Output files
+        output_png = names.DUAL_TANH_FIT_PNG
+        output_txt = os.path.join(PROJECT_DIR, names.DUAL_TANH_RESULTS_TXT)
+
+        # Run dual-tanh fit on aligned data
+        results = job_templates.dual_tanh_fit(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_png=output_png,
+            output_txt_project_dir=output_txt
+        )
+
+        print(f"Dual-tanh fit complete:")
+        print(f"  ρ_G = {results['rho_G']:.2f} kg/m³")
+        print(f"  ρ_L = {results['rho_L']:.2f} kg/m³")
+        print(f"  w = {results['w']:.3f} nm")
+        print(f"  δ_L = {results['dL']:.3f} nm, δ_R = {results['dR']:.3f} nm")
+
+
+###################################################################################################
+###################################################################################################
+#### GENERALIZED GAUSSIAN DENSITY PROFILE FIT
+###################################################################################################
+###################################################################################################
+
+@FlowProject.pre(job_tester.slab_aligned)
+@FlowProject.post(job_tester.gen_gaussian_fit_done)
+@FlowProject.operation(directives={ "np": BUILD_CORES,  "ngpu": 0, "memory": LOW_MEM, "walltime": SHORT_WAIT})
+def GEN_GAUSSIAN_FIT(job):
+    """
+    Fit generalized Gaussian profile to ALIGNED density data.
+
+    Uses: ρ(z) = ρ_G + (ρ_L - ρ_G) * exp(-|(z - z_center) / σ|^β)
+
+    The shape parameter β allows the fit to adapt:
+    - β = 2: standard Gaussian
+    - β > 2: flat-topped slab (more realistic for liquid)
+
+    Extracts:
+    - rho_G: gas density (kg/m³)
+    - rho_L: liquid density (kg/m³)
+    - z_center: slab center position (nm)
+    - sigma: width parameter (nm)
+    - beta: shape parameter
+
+    Writes results to project-level gen_gaussian_results.txt file.
+    """
+    with(job):
+        output_file = names.NAME_PRO_SURFTEN
+
+        # Use ALIGNED files from ALIGN_SLAB operation
+        tpr_file = f'{output_file}.tpr'
+        trr_file = names.NAME_ALIGNED_TRR  # aligned!
+        gro_file = names.NAME_ALIGNED_GRO  # aligned!
+
+        # Output files
+        output_png = names.GEN_GAUSS_FIT_PNG
+        output_txt = os.path.join(PROJECT_DIR, names.GEN_GAUSS_RESULTS_TXT)
+
+        #### -- for rational butterworth fit -- ##
+        ##results = job_templates.gen_rational_fit(
+        ##    job,
+        ##    tpr_file=tpr_file,
+        ##    trr_file=trr_file,
+        ##    gro_file=gro_file,
+        ##    output_png=output_png,
+        ##    output_txt_project_dir=output_txt
+        ##)
+        ##print(f"Butterworth Gaussian fit complete:")
+        ##print(f"  ρ_G = {results['rho_G']:.2f} kg/m³")
+        ##print(f"  ρ_L = {results['rho_L']:.2f} kg/m³")
+        ##print(f"  z_center = {results['z_center']:.3f} nm")
+        ##print(f"  σ = {results['sigma']:.3f} nm")
+        ##print(f"  n = {results['n_order']:.3f}")
+        ##print(f"  R² = {results['r_squared']:.4f}")
+
+        # -- for generalized Gaussian fit -- ##
+        # Run generalized Gaussian fit on aligned data
+        
+        results = job_templates.gen_gaussian_fit(
+            job,
+            tpr_file=tpr_file,
+            trr_file=trr_file,
+            gro_file=gro_file,
+            output_png=output_png,
+            output_txt_project_dir=output_txt
+        )
+        
+        print(f"Generalized Gaussian fit complete:")
+        print(f"  ρ_G = {results['rho_G']:.2f} kg/m³")
+        print(f"  ρ_L = {results['rho_L']:.2f} kg/m³")
+        print(f"  z_center = {results['z_center']:.3f} nm")
+        print(f"  σ = {results['sigma']:.3f} nm")
+        print(f"  β = {results['beta']:.3f}")
+        print(f"  R² = {results['r_squared']:.4f}")
 
 
 
